@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mapa Agrícola - Visual Crossing</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Draw CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #eef2f7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 16px;
+        }
+        .app-header {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0 12px 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .app-header h1 {
+            color: #1a3a5c;
+            font-weight: 500;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .app-header h1 i {
+            color: #2a7f9c;
+        }
+        .header-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        #map-container {
+            width: 100%;
+            max-width: 1400px;
+            height: 50vh;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #d0dce8;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            background: #e5ecf3;
+        }
+        .map-layer-control {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+            padding: 6px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid #d0dce8;
+        }
+        .map-layer-control button {
+            background: transparent;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1f3b58;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .map-layer-control button:hover {
+            background: #e8edf5;
+        }
+        .map-layer-control button.active {
+            background: #1f6e8c;
+            color: white;
+        }
+        .map-layer-control button i {
+            font-size: 0.9rem;
+        }
+        #loading-indicator {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 10px 28px;
+            border-radius: 60px;
+            font-weight: 500;
+            z-index: 1001;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            font-size: 0.9rem;
+        }
+        .bottom-panel {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .controls-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            background: white;
+            padding: 10px 18px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #dde7f0;
+            align-items: center;
+        }
+        .controls-bar .group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .controls-bar label {
+            font-weight: 500;
+            color: #1f3b58;
+            font-size: 0.8rem;
+        }
+        .controls-bar input,
+        .controls-bar select {
+            padding: 4px 10px;
+            border: 1px solid #bcccdb;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            background: white;
+            outline: none;
+            transition: 0.2s;
+        }
+        .controls-bar input:focus,
+        .controls-bar select:focus {
+            border-color: #2a6f97;
+            box-shadow: 0 0 0 3px rgba(42, 111, 151, 0.15);
+        }
+        .btn {
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-primary {
+            background: #1f6e8c;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #135472;
+            transform: scale(1.02);
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #b0c8db;
+            color: #1f3b58;
+        }
+        .btn-secondary:hover {
+            background: #e6eef7;
+        }
+        .btn-success {
+            background: #2a7f5c;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #1c5f42;
+        }
+        .btn-danger {
+            background: #b13e3e;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #8f2c2c;
+        }
+        .btn-warning {
+            background: #d4a017;
+            color: white;
+        }
+        .btn-warning:hover {
+            background: #b8850a;
+        }
+        .btn-purple {
+            background: #6c3483;
+            color: white;
+        }
+        .btn-purple:hover {
+            background: #512e5f;
+        }
+        .btn-info {
+            background: #1a7a8a;
+            color: white;
+        }
+        .btn-info:hover {
+            background: #0f5f6b;
+        }
+        .badge {
+            background: #eaf3fa;
+            padding: 3px 12px;
+            border-radius: 30px;
+            color: #1f3b58;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        .predios-section {
+            background: white;
+            border-radius: 12px;
+            padding: 12px 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #dde7f0;
+        }
+        .predios-section .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .predios-section .header h4 {
+            color: #1a3a5c;
+            font-weight: 500;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .predios-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .predio-tag {
+            background: #eaf3fa;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .predio-tag:hover {
+            background: #d4e4f0;
+        }
+        .predio-tag.active {
+            border-color: #1f6e8c;
+            background: #d4e4f0;
+        }
+        .predio-tag .delete-predio {
+            color: #b13e3e;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .predio-tag .delete-predio:hover {
+            color: #8f2c2c;
+        }
+        .predio-tag .predio-id {
+            color: #4c6a83;
+            font-size: 0.65rem;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 0 6px;
+            border-radius: 10px;
+        }
+        .historical-section {
+            background: white;
+            border-radius: 12px;
+            padding: 12px 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #dde7f0;
+            display: none;
+        }
+        .historical-section .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .historical-section .header h4 {
+            color: #1a3a5c;
+            font-weight: 500;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .historical-section .header small {
+            font-weight: 300;
+            font-size: 0.75rem;
+            color: #4c6a83;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .historical-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            min-width: 750px;
+        }
+        .historical-table th {
+            background: #1f3b58;
+            color: white;
+            padding: 6px 5px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 500;
+            white-space: nowrap;
+            font-size: 0.7rem;
+        }
+        .historical-table td {
+            padding: 5px 4px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+            font-size: 0.75rem;
+        }
+        .historical-table tr:hover td {
+            background: #f7fafc;
+        }
+        .semaphore {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin: 0 1px;
+            vertical-align: middle;
+        }
+        .semaphore-green {
+            background: #2ecc71;
+        }
+        .semaphore-yellow {
+            background: #f1c40f;
+        }
+        .semaphore-red {
+            background: #e74c3c;
+        }
+        .semaphore-gray {
+            background: #95a5a6;
+        }
+        .status-badge {
+            padding: 1px 8px;
+            border-radius: 16px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .status-green {
+            background: #d5f5e3;
+            color: #1a7a42;
+        }
+        .status-yellow {
+            background: #fdebd0;
+            color: #a04000;
+        }
+        .status-red {
+            background: #fadbd8;
+            color: #922b21;
+        }
+        .status-gray {
+            background: #e8e8e8;
+            color: #5d6d7e;
+        }
+        .legend-bar {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+            font-size: 0.7rem;
+            justify-content: center;
+        }
+        .legend-bar .item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .footer-note {
+            margin-top: 6px;
+            font-size: 0.7rem;
+            color: #4c6a83;
+            text-align: center;
+        }
+        .popup-btn {
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.2s;
+            margin: 1px 0;
+            width: 100%;
+        }
+        .popup-btn-hist {
+            background: #2a7f9c;
+        }
+        .popup-btn-hist:hover {
+            background: #0f5a73;
+        }
+        .popup-btn-excel {
+            background: #1d7a4a;
+        }
+        .popup-btn-excel:hover {
+            background: #0f5a33;
+        }
+        .popup-btn-save {
+            background: #d4a017;
+        }
+        .popup-btn-save:hover {
+            background: #b8850a;
+        }
+        .popup-btn-forecast {
+            background: #6c3483;
+        }
+        .popup-btn-forecast:hover {
+            background: #512e5f;
+        }
+        .popup-btn-chart {
+            background: #1a7a8a;
+        }
+        .popup-btn-chart:hover {
+            background: #0f5f6b;
+        }
+        .popup-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .popup-btn-group {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+        }
+        .popup-btn-group .popup-btn {
+            flex: 1;
+            min-width: 45px;
+            font-size: 0.65rem;
+        }
+        .custom-popup .leaflet-popup-content {
+            min-width: 260px;
+            max-width: 340px;
+            font-size: 0.8rem;
+            line-height: 1.3;
+        }
+        .popup-title {
+            font-weight: 600;
+            color: #0d2c44;
+            border-bottom: 1px solid #dde7f0;
+            padding-bottom: 3px;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+        .popup-weather {
+            background: #f5f9ff;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin: 3px 0 6px 0;
+            border-left: 3px solid #2a7f9c;
+            font-size: 0.75rem;
+        }
+        .popup-weather p {
+            margin: 1px 0;
+        }
+        .empty-state {
+            color: #7f8c8d;
+            font-size: 0.8rem;
+            padding: 4px 0;
+        }
+
+        /* FORECAST OPTIMIZADO */
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 3px;
+            margin-top: 4px;
+        }
+        .forecast-item {
+            background: #f5f9ff;
+            border-radius: 4px;
+            padding: 3px 4px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            font-size: 0.55rem;
+        }
+        .forecast-item .fecha {
+            font-weight: 600;
+            font-size: 0.55rem;
+            color: #1f3b58;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+        }
+        .forecast-item .fila {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1px 2px;
+            gap: 2px;
+        }
+        .forecast-item .fila .etq {
+            color: #4c6a83;
+            font-size: 0.5rem;
+            font-weight: 600;
+            min-width: 18px;
+            text-align: left;
+        }
+        .forecast-item .fila .val {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+        }
+        .forecast-item .semaphore {
+            width: 10px;
+            height: 10px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+        .forecast-item .fila .val-text {
+            font-size: 0.5rem;
+            color: #1f3b58;
+            font-weight: 500;
+        }
+        .forecast-legend {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            font-size: 0.55rem;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .forecast-legend .item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .forecast-legend .semaphore {
+            width: 10px;
+            height: 10px;
+        }
+        .fila-temp {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            font-size: 0.5rem;
+            color: #4c6a83;
+        }
+
+        /* Modal para gráficos */
+        .chart-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .chart-modal.active {
+            display: flex;
+        }
+        .chart-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 20px 24px;
+            max-width: 800px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        .chart-modal-content .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 16px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #4c6a83;
+            background: none;
+            border: none;
+            transition: 0.2s;
+        }
+        .chart-modal-content .close-btn:hover {
+            color: #1f3b58;
+            transform: rotate(90deg);
+        }
+        .chart-modal-content h3 {
+            color: #1a3a5c;
+            margin-bottom: 12px;
+            font-weight: 500;
+            text-align: center;
+        }
+        .chart-modal-content .chart-container {
+            position: relative;
+            height: 320px;
+        }
+        .chart-modal-content .chart-legend-custom {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            font-size: 0.75rem;
+        }
+        .chart-modal-content .chart-legend-custom span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .chart-modal-content .chart-legend-custom .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        @media (max-width: 700px) {
+            .app-header h1 {
+                font-size: 1.2rem;
+            }
+            .controls-bar {
+                padding: 8px 12px;
+                border-radius: 10px;
+            }
+            .controls-bar .group {
+                gap: 3px;
+            }
+            .controls-bar input,
+            .controls-bar select {
+                font-size: 0.7rem;
+                padding: 3px 8px;
+            }
+            .btn {
+                font-size: 0.7rem;
+                padding: 3px 10px;
+            }
+            .historical-table {
+                font-size: 0.65rem;
+                min-width: 600px;
+            }
+            .map-layer-control {
+                bottom: 10px;
+                right: 10px;
+                padding: 4px;
+            }
+            .map-layer-control button {
+                font-size: 0.6rem;
+                padding: 4px 6px;
+            }
+            .forecast-grid {
+                grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            }
+            .chart-modal-content {
+                padding: 16px;
+            }
+            .chart-modal-content .chart-container {
+                height: 220px;
+            }
+        }
+
+        /* Modal para nombre de predio */
+        .name-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        .name-modal.active {
+            display: flex;
+        }
+        .name-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px 28px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+        }
+        .name-modal-content h3 {
+            color: #1a3a5c;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        .name-modal-content input {
+            width: 100%;
+            padding: 8px 14px;
+            border: 1px solid #bcccdb;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            outline: none;
+            margin-bottom: 12px;
+        }
+        .name-modal-content input:focus {
+            border-color: #2a6f97;
+            box-shadow: 0 0 0 3px rgba(42, 111, 151, 0.15);
+        }
+        .name-modal-content .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .name-modal-content .btn-group .btn {
+            padding: 6px 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-header">
+        <h1><i class="fas fa-seedling"></i> Mapa Agrícola - México</h1>
+        <div class="header-controls">
+            <span class="badge" id="polygonInfo"><i class="far fa-square"></i> Dibuja un polígono</span>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <div id="loading-indicator"><i class="fas fa-spinner fa-spin"></i> Cargando datos...</div>
+        <div class="map-layer-control" id="layerControl">
+            <button class="active" data-layer="osm"><i class="fas fa-map"></i> OSM</button>
+            <button data-layer="google"><i class="fas fa-satellite"></i> Google</button>
+            <button data-layer="esri"><i class="fas fa-globe"></i> ESRI</button>
+        </div>
+    </div>
+
+    <div class="bottom-panel">
+        <div class="controls-bar">
+            <div class="group">
+                <label for="siembra"><i class="fas fa-calendar-alt"></i> Siembra:</label>
+                <input type="date" id="siembra" value="2026-06-01" />
+            </div>
+            <div class="group">
+                <label for="cultivo"><i class="fas fa-clock"></i> Duración:</label>
+                <select id="cultivo">
+                    <option value="3">3 meses</option>
+                    <option value="4" selected>4 meses</option>
+                    <option value="5">5 meses</option>
+                    <option value="6">6 meses</option>
+                    <option value="7">7 meses</option>
+                </select>
+            </div>
+            <div class="group">
+                <button class="btn btn-primary" id="drawPolygonBtn"><i class="fas fa-draw-polygon"></i> Dibujar</button>
+                <button class="btn btn-secondary" id="clearDrawBtn"><i class="fas fa-trash-alt"></i> Limpiar</button>
+            </div>
+        </div>
+
+        <div class="predios-section" id="prediosSection">
+            <div class="header">
+                <h4><i class="fas fa-list"></i> Historial de Predios</h4>
+                <div>
+                    <button class="btn btn-success" id="exportAllBtn"><i class="fas fa-file-excel"></i> Exportar Todos</button>
+                    <button class="btn btn-secondary" id="clearAllPredios"><i class="fas fa-trash"></i> Limpiar Todos</button>
+                </div>
+            </div>
+            <div class="predios-list" id="prediosList">
+                <span class="empty-state"><i class="fas fa-info-circle"></i> No hay predios guardados</span>
+            </div>
+        </div>
+
+        <div class="historical-section" id="historicalSection">
+            <div class="header">
+                <h4><i class="fas fa-chart-bar"></i> Histórico Semanal</h4>
+                <small id="histPeriodInfo">Selecciona un predio</small>
+            </div>
+            <div class="table-wrapper">
+                <table class="historical-table" id="historicalTable">
+                    <thead>
+                        <tr>
+                            <th>Sem</th>
+                            <th>Fecha</th>
+                            <th>T.Max</th>
+                            <th>T.Min</th>
+                            <th>Precip</th>
+                            <th>T.Max</th>
+                            <th>T.Min</th>
+                            <th>Precip</th>
+                            <th>Taponamiento</th>
+                            <th>Acame</th>
+                            <th>Índice Agua</th>
+                        </tr>
+                    </thead>
+                    <tbody id="histTableBody">
+                        <tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">Dibuja un polígono y carga el histórico</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="legend-bar">
+                <span class="item"><span class="semaphore semaphore-green"></span> Óptimo</span>
+                <span class="item"><span class="semaphore semaphore-yellow"></span> Precaución</span>
+                <span class="item"><span class="semaphore semaphore-red"></span> Alerta</span>
+                <span class="item"><span class="status-badge status-green">Normal</span> Normal</span>
+                <span class="item"><span class="status-badge status-gray">N/A</span> N/A</span>
+                <span class="item"><span class="status-badge status-red">Sequía</span> Sequía</span>
+                <span class="item"><span class="status-badge status-red">Inundación</span> Inundación</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-note"><i class="fas fa-mouse-pointer"></i> Dibuja un polígono en el mapa · Guarda predios · Exporta a Excel</div>
+
+    <!-- Modal para nombre de predio -->
+    <div class="name-modal" id="nameModal">
+        <div class="name-modal-content">
+            <h3><i class="fas fa-pen"></i> Nombre del Predio</h3>
+            <input type="text" id="predioNameInput" placeholder="Ej: Lote 5, Finca San Juan..." value="Predio 1" />
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="nameModalCancel">Cancelar</button>
+                <button class="btn btn-primary" id="nameModalConfirm"><i class="fas fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para gráficos -->
+    <div class="chart-modal" id="chartModal">
+        <div class="chart-modal-content">
+            <button class="close-btn" id="chartModalClose">&times;</button>
+            <h3 id="chartTitle">📊 Pronóstico</h3>
+            <div class="chart-container">
+                <canvas id="forecastChart"></canvas>
+            </div>
+            <div class="chart-legend-custom">
+                <span><span class="dot" style="background:#3498db;"></span> T. Máxima (°C)</span>
+                <span><span class="dot" style="background:#e67e22;"></span> T. Mínima (°C)</span>
+                <span><span class="dot" style="background:#2ecc71;"></span> Precipitación (mm)</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+    <script>
+        (function() {
+            const API_KEY = 'W8DA7F4LDPDBT5QHQS95M8ZJZ';
+            const BASE_URL = 'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline';
+
+            const PRECIP_RANGES = {
+                0: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                1: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                2: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                3: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                4: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                5: { min: 10.3, opt: 16, minReal: 8.1, prec: 12.8, inundPrec: 38.9, inundPot: 58.3, sequia: 5.69 },
+                6: { min: 10.3, opt: 16, minReal: 8.1, prec: 12.8, inundPrec: 38.9, inundPot: 58.3, sequia: 5.69 },
+                7: { min: 25.7, opt: 40, minReal: 20.3, prec: 32, inundPrec: 97.2, inundPot: 145.7, sequia: 14.22 },
+                8: { min: 30.9, opt: 48, minReal: 24.4, prec: 38.4, inundPrec: 116.6, inundPot: 174.9, sequia: 17.07 },
+                9: { min: 20.6, opt: 32, minReal: 16.3, prec: 25.6, inundPrec: 77.7, inundPot: 116.6, sequia: 11.38 },
+                10: { min: 25.7, opt: 40, minReal: 20.3, prec: 32, inundPrec: 97.2, inundPot: 145.7, sequia: 14.22 },
+                11: { min: 20.6, opt: 32, minReal: 16.3, prec: 25.6, inundPrec: 77.7, inundPot: 116.6, sequia: 11.38 },
+                12: { min: 20.6, opt: 32, minReal: 16.3, prec: 25.6, inundPrec: 77.7, inundPot: 116.6, sequia: 11.38 },
+                13: { min: 36.0, opt: 56, minReal: 28.4, prec: 44.8, inundPrec: 136.0, inundPot: 204.0, sequia: 19.91 },
+                14: { min: 51.4, opt: 80, minReal: 40.6, prec: 64, inundPrec: 194.3, inundPot: 291.5, sequia: 28.44 },
+                15: { min: 51.4, opt: 80, minReal: 40.6, prec: 64, inundPrec: 194.3, inundPot: 291.5, sequia: 28.44 },
+                16: { min: 43.7, opt: 68, minReal: 34.5, prec: 54.4, inundPrec: 165.2, inundPot: 247.7, sequia: 24.18 },
+                17: { min: 30.9, opt: 48, minReal: 24.4, prec: 38.4, inundPrec: 116.6, inundPot: 174.9, sequia: 17.07 },
+                18: { min: 25.7, opt: 40, minReal: 20.3, prec: 32, inundPrec: 97.2, inundPot: 145.7, sequia: 14.22 },
+                19: { min: 23.1, opt: 36, minReal: 18.3, prec: 28.8, inundPrec: 87.4, inundPot: 131.2, sequia: 12.80 },
+                20: { min: 20.6, opt: 32, minReal: 16.3, prec: 25.6, inundPrec: 77.7, inundPot: 116.6, sequia: 11.38 },
+                21: { min: 18.0, opt: 28, minReal: 14.2, prec: 22.4, inundPrec: 68.0, inundPot: 102.0, sequia: 9.95 },
+                22: { min: 10.3, opt: 16, minReal: 8.1, prec: 12.8, inundPrec: 38.9, inundPot: 58.3, sequia: 5.69 },
+                23: { min: 10.3, opt: 16, minReal: 8.1, prec: 12.8, inundPrec: 38.9, inundPot: 58.3, sequia: 5.69 },
+                24: { min: 5.1, opt: 8, minReal: 4.1, prec: 6.4, inundPrec: 19.4, inundPot: 29.1, sequia: 2.84 },
+                25: { min: 2.6, opt: 4, minReal: 2.0, prec: 3.2, inundPrec: 9.7, inundPot: 14.6, sequia: 1.42 },
+                26: { min: 2.6, opt: 4, minReal: 2.031564, prec: 3.2, inundPrec: 9.7, inundPot: 14.6, sequia: 1.42 },
+            };
+
+            let predios = [];
+            let predioCounter = 0;
+            let currentPolygon = null;
+            let currentPopup = null;
+            let chartInstance = null;
+
+            const mapElement = document.getElementById('map');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const drawBtn = document.getElementById('drawPolygonBtn');
+            const clearBtn = document.getElementById('clearDrawBtn');
+            const siembraInput = document.getElementById('siembra');
+            const cultivoSelect = document.getElementById('cultivo');
+            const polygonInfo = document.getElementById('polygonInfo');
+            const historicalSection = document.getElementById('historicalSection');
+            const histTableBody = document.getElementById('histTableBody');
+            const histPeriodInfo = document.getElementById('histPeriodInfo');
+            const prediosList = document.getElementById('prediosList');
+            const exportAllBtn = document.getElementById('exportAllBtn');
+            const clearAllPredios = document.getElementById('clearAllPredios');
+            const layerButtons = document.querySelectorAll('#layerControl button');
+            const nameModal = document.getElementById('nameModal');
+            const predioNameInput = document.getElementById('predioNameInput');
+            const nameModalConfirm = document.getElementById('nameModalConfirm');
+            const nameModalCancel = document.getElementById('nameModalCancel');
+            const chartModal = document.getElementById('chartModal');
+            const chartModalClose = document.getElementById('chartModalClose');
+            const chartTitle = document.getElementById('chartTitle');
+            const forecastChart = document.getElementById('forecastChart');
+
+            // ===== MAPA LIMITADO A MÉXICO =====
+            const mexicoBounds = [
+                [14.5, -118.5],
+                [32.5, -86.5]
+            ];
+            const map = L.map(mapElement, {
+                maxBounds: mexicoBounds,
+                maxBoundsViscosity: 1.0
+            }).setView([23.5, -102.0], 5);
+
+            // Capas base
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            });
+
+            const googleLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google',
+                maxZoom: 20,
+                subdomains: ['mt1', 'mt2', 'mt3']
+            });
+
+            const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; ESRI',
+                maxZoom: 19
+            });
+
+            let activeLayer = osmLayer;
+            activeLayer.addTo(map);
+
+            layerButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    layerButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const layer = this.dataset.layer;
+                    map.removeLayer(activeLayer);
+                    if (layer === 'osm') {
+                        activeLayer = osmLayer;
+                    } else if (layer === 'google') {
+                        activeLayer = googleLayer;
+                    } else if (layer === 'esri') {
+                        activeLayer = esriLayer;
+                    }
+                    activeLayer.addTo(map);
+                });
+            });
+
+            const drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            const drawControl = new L.Control.Draw({
+                position: 'topright',
+                draw: {
+                    polygon: {
+                        allowIntersection: false,
+                        showArea: true,
+                        shapeOptions: {
+                            color: '#1f6e8c',
+                            weight: 3,
+                            opacity: 0.8,
+                            fillColor: '#4b9bb8',
+                            fillOpacity: 0.25
+                        }
+                    },
+                    rectangle: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    polyline: false,
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+
+            function showLoading(show) {
+                loadingIndicator.style.display = show ? 'block' : 'none';
+            }
+
+            function getCentroid(latLngs) {
+                let latSum = 0,
+                    lngSum = 0;
+                latLngs.forEach(ll => { latSum += ll.lat;
+                    lngSum += ll.lng; });
+                return { lat: latSum / latLngs.length, lng: lngSum / latLngs.length };
+            }
+
+            function formatDate(dateStr) {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('es-ES');
+            }
+
+            function formatDateShort(dateStr) {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+            }
+
+            function getTempMaxStatus(temp) {
+                if (temp < 33) return { class: 'semaphore-green', text: 'Óptimo' };
+                if (temp >= 33 && temp <= 35) return { class: 'semaphore-yellow', text: 'Precaución' };
+                return { class: 'semaphore-red', text: 'Alerta' };
+            }
+
+            function getTempMinStatus(temp) {
+                if (temp > 8) return { class: 'semaphore-green', text: 'Óptimo' };
+                if (temp >= 4 && temp <= 8) return { class: 'semaphore-yellow', text: 'Precaución' };
+                return { class: 'semaphore-red', text: 'Alerta' };
+            }
+
+            function getPrecipStatus(precip, weekIdx) {
+                const range = PRECIP_RANGES[weekIdx];
+                if (!range) return { class: 'semaphore-gray', text: 'N/A' };
+                if (precip <= 0) {
+                    if (0 < range.minReal) return { class: 'semaphore-red', text: 'Alerta' };
+                    return { class: 'semaphore-yellow', text: 'Precaución' };
+                }
+                if (precip < range.minReal) return { class: 'semaphore-red', text: 'Alerta' };
+                if (precip < range.min) return { class: 'semaphore-yellow', text: 'Precaución' };
+                if (precip >= range.min && precip <= range.opt) return { class: 'semaphore-green', text: 'Óptimo' };
+                if (precip > range.opt && precip <= range.prec) return { class: 'semaphore-yellow', text: 'Precaución' };
+                if (precip > range.prec && precip <= range.inundPrec) return { class: 'semaphore-red', text: 'Alerta' };
+                return { class: 'semaphore-red', text: 'Alerta' };
+            }
+
+            function getTaponamiento(precipArray, weekNum) {
+                if (weekNum > 5) return { text: 'N/A', class: 'status-gray' };
+                const last7 = precipArray.slice(-7);
+                const count15 = last7.filter(p => p >= 15).length;
+                const count10 = last7.filter(p => p >= 10).length;
+                const totalPrecip = precipArray.reduce((a, b) => a + b, 0);
+                if (totalPrecip <= 5) return { text: 'NO', class: 'status-green' };
+                if (count15 >= 3) return { text: 'Alerta', class: 'status-red' };
+                if (count10 >= 2) return { text: 'Probable', class: 'status-yellow' };
+                return { text: 'NO', class: 'status-green' };
+            }
+
+            function getAcame(tempMax) {
+                if (tempMax >= 40) return { text: 'Alerta', class: 'semaphore-red' };
+                if (tempMax <= 15) return { text: 'Normal', class: 'semaphore-green' };
+                return { text: 'Precaución', class: 'semaphore-yellow' };
+            }
+
+            // Índice de Agua con leyenda específica
+            function getIndiceAgua(precip, weekIdx) {
+                const range = PRECIP_RANGES[weekIdx];
+                if (!range) return { text: 'N/A', class: 'semaphore-gray' };
+                if (precip <= 0) {
+                    return { text: 'Sequía', class: 'semaphore-red' };
+                }
+                if (precip <= range.sequia) return { text: 'Sequía', class: 'semaphore-red' };
+                if (precip >= range.inundPot) return { text: 'Inundación', class: 'semaphore-red' };
+                if (precip >= range.min && precip <= range.opt) return { text: 'Normal', class: 'semaphore-green' };
+                if (precip >= range.minReal && precip < range.min) return { text: 'Precaución', class: 'semaphore-yellow' };
+                if (precip > range.opt && precip < range.inundPrec) return { text: 'Precaución', class: 'semaphore-yellow' };
+                return { text: 'Precaución', class: 'semaphore-yellow' };
+            }
+
+            async function fetchCurrentWeather(lat, lng) {
+                const url = `${BASE_URL}/${lat},${lng}/today?unitGroup=metric&key=${API_KEY}&contentType=json`;
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`API Error (${resp.status})`);
+                const data = await resp.json();
+                if (data.days && data.days.length > 0) {
+                    const d = data.days[0];
+                    return {
+                        temp: d.temp,
+                        feelslike: d.feelslike,
+                        humidity: d.humidity,
+                        precip: d.precip || 0,
+                        windspeed: d.windspeed,
+                        conditions: d.conditions || 'N/A',
+                        description: d.description || 'Sin descripción',
+                        date: d.datetime || new Date().toISOString().split('T')[0],
+                        tempmin: d.tempmin || d.temp - 5,
+                        tempmax: d.tempmax || d.temp + 5
+                    };
+                }
+                throw new Error('No hay datos para hoy');
+            }
+
+            async function fetchForecast(lat, lng, days) {
+                const url =
+                    `${BASE_URL}/${lat},${lng}/next${days}days?unitGroup=metric&key=${API_KEY}&contentType=json`;
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`API Pronóstico Error (${resp.status})`);
+                const data = await resp.json();
+                if (data.days && data.days.length > 0) {
+                    return data.days;
+                }
+                throw new Error('Sin datos de pronóstico');
+            }
+
+            async function fetchWeeklyHistorical(lat, lng, startDate, durationMonths) {
+                const start = new Date(startDate);
+                const end = new Date(start);
+                end.setMonth(end.getMonth() + durationMonths);
+                end.setDate(end.getDate() - 1);
+                const startStr = start.toISOString().split('T')[0];
+                const endStr = end.toISOString().split('T')[0];
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const endDate = new Date(endStr);
+                let finalEndStr = endStr;
+                if (endDate > today) {
+                    finalEndStr = today.toISOString().split('T')[0];
+                }
+
+                const url =
+                    `${BASE_URL}/${lat},${lng}/${startStr}/${finalEndStr}?unitGroup=metric&key=${API_KEY}&contentType=json`;
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`API Histórico Error (${resp.status})`);
+                const data = await resp.json();
+                if (data.days && data.days.length > 0) {
+                    return data.days;
+                }
+                throw new Error('Sin datos en el rango');
+            }
+
+            function groupByWeeks(days) {
+                const weeks = [];
+                let currentWeek = [];
+                days.forEach((day, index) => {
+                    currentWeek.push(day);
+                    if (currentWeek.length === 7 || index === days.length - 1) {
+                        weeks.push(currentWeek);
+                        currentWeek = [];
+                    }
+                });
+                return weeks;
+            }
+
+            function buildHistoricalTable(days, startDate, predioNombre) {
+                if (!days || days.length === 0) {
+                    histTableBody.innerHTML =
+                        '<tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">No hay datos disponibles</td></tr>';
+                    historicalSection.style.display = 'block';
+                    histPeriodInfo.textContent = predioNombre || 'Sin datos';
+                    return;
+                }
+
+                const duracionMeses = parseInt(cultivoSelect.value);
+                const start = new Date(startDate);
+                const end = new Date(start);
+                end.setMonth(end.getMonth() + duracionMeses);
+                const endStr = end.toISOString().split('T')[0];
+                const filteredDays = days.filter(d => d.datetime <= endStr);
+
+                if (filteredDays.length === 0) {
+                    histTableBody.innerHTML =
+                        '<tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">No hay datos para la duración seleccionada</td></tr>';
+                    historicalSection.style.display = 'block';
+                    histPeriodInfo.textContent = predioNombre || 'Sin datos';
+                    return;
+                }
+
+                const weeks = groupByWeeks(filteredDays);
+
+                let html = '';
+                let globalPrecip = [];
+
+                weeks.forEach((week, idx) => {
+                    const weekNum = idx + 1;
+                    const weekIdx = weekNum;
+                    const avgTempMax = week.reduce((s, d) => s + (d.tempmax || d.temp), 0) / week.length;
+                    const avgTempMin = week.reduce((s, d) => s + (d.tempmin || d.temp - 3), 0) / week.length;
+                    const totalPrecip = week.reduce((s, d) => s + (d.precip || 0), 0);
+
+                    const tempMaxStatus = getTempMaxStatus(avgTempMax);
+                    const tempMinStatus = getTempMinStatus(avgTempMin);
+                    const precipStatus = getPrecipStatus(totalPrecip, weekIdx);
+
+                    const weekPrecip = week.map(d => d.precip || 0);
+                    globalPrecip = globalPrecip.concat(weekPrecip);
+                    const taponamiento = getTaponamiento(globalPrecip, weekNum);
+                    const acame = getAcame(avgTempMax);
+                    const indiceAgua = getIndiceAgua(totalPrecip, weekIdx);
+
+                    const startDateStr = formatDate(week[0].datetime);
+                    const endDateStr = formatDate(week[week.length - 1].datetime);
+
+                    // Mostrar leyenda de Índice Agua con el semáforo
+                    html += `<tr>
+                        <td><strong>${weekNum}</strong></td>
+                        <td>${startDateStr} - ${endDateStr}</td>
+                        <td>${avgTempMax.toFixed(1)}</td>
+                        <td>${avgTempMin.toFixed(1)}</td>
+                        <td>${totalPrecip.toFixed(1)}</td>
+                        <td><span class="semaphore ${tempMaxStatus.class}"></span></td>
+                        <td><span class="semaphore ${tempMinStatus.class}"></span></td>
+                        <td><span class="semaphore ${precipStatus.class}"></span></td>
+                        <td><span class="status-badge ${taponamiento.class}">${taponamiento.text}</span></td>
+                        <td><span class="semaphore ${acame.class}"></span></td>
+                        <td><span class="status-badge ${indiceAgua.class}">${indiceAgua.text}</span></td>
+                    </tr>`;
+                });
+
+                histTableBody.innerHTML = html;
+                historicalSection.style.display = 'block';
+                histPeriodInfo.textContent =
+                    `${predioNombre || 'Predio'} · ${formatDate(filteredDays[0].datetime)} → ${formatDate(filteredDays[filteredDays.length-1].datetime)} (${filteredDays.length} días)`;
+            }
+
+            function exportPredioToExcel(predio) {
+                const rows = [];
+
+                rows.push({
+                    'Predio': predio.nombre,
+                    'Fecha Siembra': predio.siembra,
+                    'Duración (meses)': predio.duracion,
+                    'Latitud Centro': predio.lat.toFixed(5),
+                    'Longitud Centro': predio.lng.toFixed(5),
+                });
+
+                const coordsStr = predio.coords.map((c, i) =>
+                    `V${i+1}: ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`).join('; ');
+                rows.push({
+                    'Predio': 'Coordenadas',
+                    'Fecha Siembra': '',
+                    'Duración (meses)': '',
+                    'Latitud Centro': '',
+                    'Longitud Centro': '',
+                    'Vértices': coordsStr
+                });
+
+                if (predio.days && predio.days.length > 0) {
+                    const duracionMeses = parseInt(predio.duracion);
+                    const start = new Date(predio.siembra);
+                    const end = new Date(start);
+                    end.setMonth(end.getMonth() + duracionMeses);
+                    const endStr = end.toISOString().split('T')[0];
+                    const filteredDays = predio.days.filter(d => d.datetime <= endStr);
+
+                    const weeks = groupByWeeks(filteredDays);
+
+                    let globalPrecip = [];
+                    weeks.forEach((week, idx) => {
+                        const weekNum = idx + 1;
+                        const weekIdx = weekNum;
+                        const avgTempMax = week.reduce((s, d) => s + (d.tempmax || d.temp), 0) / week.length;
+                        const avgTempMin = week.reduce((s, d) => s + (d.tempmin || d.temp - 3), 0) / week.length;
+                        const totalPrecip = week.reduce((s, d) => s + (d.precip || 0), 0);
+
+                        const tempMaxSt = getTempMaxStatus(avgTempMax);
+                        const tempMinSt = getTempMinStatus(avgTempMin);
+                        const precipSt = getPrecipStatus(totalPrecip, weekIdx);
+                        const weekPrecip = week.map(d => d.precip || 0);
+                        globalPrecip = globalPrecip.concat(weekPrecip);
+                        const taponamiento = getTaponamiento(globalPrecip, weekNum);
+                        const acame = getAcame(avgTempMax);
+                        const indiceAgua = getIndiceAgua(totalPrecip, weekIdx);
+
+                        const startDateStr = formatDate(week[0].datetime);
+                        const endDateStr = formatDate(week[week.length - 1].datetime);
+
+                        rows.push({
+                            'Semana': weekNum,
+                            'Fecha': `${startDateStr} - ${endDateStr}`,
+                            'T.Max': tempMaxSt.text,
+                            'T.Min': tempMinSt.text,
+                            'Precip': precipSt.text,
+                            'Taponamiento': taponamiento.text,
+                            'Acame': acame.text,
+                            'Índice Agua': indiceAgua.text,
+                        });
+                    });
+                }
+
+                return rows;
+            }
+
+            function exportAllPredios() {
+                if (predios.length === 0) {
+                    alert('No hay predios guardados para exportar.');
+                    return;
+                }
+
+                const allRows = [];
+                predios.forEach(predio => {
+                    const rows = exportPredioToExcel(predio);
+                    allRows.push(...rows);
+                    allRows.push({});
+                });
+
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(allRows);
+                XLSX.utils.book_append_sheet(wb, ws, 'Clima');
+                const colWidths = [
+                    { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
+                    { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }
+                ];
+                ws['!cols'] = colWidths;
+
+                const filename = `todos_los_predios_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLSX.writeFile(wb, filename);
+            }
+
+            // ===== PRONÓSTICO =====
+            function showForecast(weatherDiv, lat, lng, days, title, showChartBtn = true) {
+                weatherDiv.innerHTML = `<p><i class="fas fa-spinner fa-spin"></i> Cargando pronóstico ${days} días...</p>`;
+
+                fetchForecast(lat, lng, days)
+                    .then(forecastDays => {
+                        const weeks = groupByWeeks(forecastDays);
+                        let chartData = [];
+
+                        let html =
+                            `<p style="font-weight:600;font-size:0.7rem;text-align:center;">📊 ${title} (${weeks.length} semanas)</p><div class="forecast-grid">`;
+
+                        weeks.forEach((week, idx) => {
+                            const weekNum = idx + 1;
+                            const weekIdx = weekNum;
+                            const tMax = week.reduce((s, d) => s + (d.tempmax || d.temp), 0) / week.length;
+                            const tMin = week.reduce((s, d) => s + (d.tempmin || d.temp - 3), 0) / week.length;
+                            const prec = week.reduce((s, d) => s + (d.precip || 0), 0);
+                            const fechaInicio = formatDateShort(week[0].datetime);
+                            const fechaFin = formatDateShort(week[week.length - 1].datetime);
+
+                            const tmS = getTempMaxStatus(tMax);
+                            const tmnS = getTempMinStatus(tMin);
+                            const prS = getPrecipStatus(prec, weekIdx);
+                            const acS = getAcame(tMax);
+                            const iaS = getIndiceAgua(prec, weekIdx);
+
+                            chartData.push({
+                                semana: `S${weekNum}`,
+                                tMaxVal: tMax,
+                                tMinVal: tMin,
+                                precVal: prec,
+                                tMax: tmS.text,
+                                tMin: tmnS.text,
+                                precip: prS.text,
+                                acame: acS.text,
+                                indiceAgua: iaS.text
+                            });
+
+                            html += `<div class="forecast-item">
+                                <div class="fecha">${fechaInicio}-${fechaFin}</div>
+                                <div class="fila"><span class="etq">Máx</span><span class="val"><span class="semaphore ${tmS.class}"></span><span class="val-text">${tmS.text}</span></span></div>
+                                <div class="fila"><span class="etq">Mín</span><span class="val"><span class="semaphore ${tmnS.class}"></span><span class="val-text">${tmnS.text}</span></span></div>
+                                <div class="fila"><span class="etq">Precip</span><span class="val"><span class="semaphore ${prS.class}"></span><span class="val-text">${prS.text}</span></span></div>
+                                <div class="fila"><span class="etq">Acame</span><span class="val"><span class="semaphore ${acS.class}"></span><span class="val-text">${acS.text}</span></span></div>
+                                <div class="fila"><span class="etq">I.Agua</span><span class="val"><span class="semaphore ${iaS.class}"></span><span class="val-text">${iaS.text}</span></span></div>
+                                <div class="fila-temp">${tMax.toFixed(0)}°/${tMin.toFixed(0)}°</div>
+                            </div>`;
+                        });
+
+                        html += `</div>
+                            <div class="forecast-legend">
+                                <span class="item"><span class="semaphore semaphore-green"></span> Óptimo/Normal</span>
+                                <span class="item"><span class="semaphore semaphore-yellow"></span> Precaución</span>
+                                <span class="item"><span class="semaphore semaphore-red"></span> Alerta</span>
+                                <span class="item"><span class="semaphore semaphore-gray"></span> N/A</span>
+                            </div>`;
+
+                        if (showChartBtn) {
+                            html +=
+                                `<button class="popup-btn popup-btn-chart" style="margin-top:4px;width:100%;" onclick="window.showChartModal('${title}', ${JSON.stringify(chartData).replace(/"/g, '&quot;')})"><i class="fas fa-chart-bar"></i> Ver Gráfico</button>`;
+                        }
+
+                        weatherDiv.innerHTML = html;
+                    })
+                    .catch(err => {
+                        weatherDiv.innerHTML = `<p style="color:#b33;"><i class="fas fa-exclamation-circle"></i> ${err.message}</p>`;
+                    });
+            }
+
+            // ===== GRÁFICO =====
+            window.showChartModal = function(title, chartData) {
+                const modal = document.getElementById('chartModal');
+                const chartTitle = document.getElementById('chartTitle');
+                const canvas = document.getElementById('forecastChart');
+
+                chartTitle.textContent = `📊 ${title} - Valores Reales`;
+                modal.classList.add('active');
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                const labels = chartData.map(d => d.semana);
+
+                chartInstance = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'T. Máxima (°C)',
+                            data: chartData.map(d => parseFloat(d.tMaxVal.toFixed(1))),
+                            backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                            borderColor: 'rgba(52, 152, 219, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }, {
+                            label: 'T. Mínima (°C)',
+                            data: chartData.map(d => parseFloat(d.tMinVal.toFixed(1))),
+                            backgroundColor: 'rgba(230, 126, 34, 0.7)',
+                            borderColor: 'rgba(230, 126, 34, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }, {
+                            label: 'Precipitación (mm)',
+                            data: chartData.map(d => parseFloat(d.precVal.toFixed(1))),
+                            backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                            borderColor: 'rgba(46, 204, 113, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(0,0,0,0.05)'
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+
+            // Cerrar modal de gráfico
+            chartModalClose.addEventListener('click', function() {
+                chartModal.classList.remove('active');
+                if (chartInstance) {
+                    chartInstance.destroy();
+                    chartInstance = null;
+                }
+            });
+
+            chartModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    chartModal.classList.remove('active');
+                    if (chartInstance) {
+                        chartInstance.destroy();
+                        chartInstance = null;
+                    }
+                }
+            });
+
+            // ===== MODAL PARA NOMBRE DE PREDIO =====
+            function showNameModal(saveCallback) {
+                predioNameInput.value = `Predio ${predios.length + 1}`;
+                nameModal.classList.add('active');
+                predioNameInput.focus();
+                predioNameInput.select();
+
+                const newConfirm = nameModalConfirm.cloneNode(true);
+                const newCancel = nameModalCancel.cloneNode(true);
+                nameModalConfirm.parentNode.replaceChild(newConfirm, nameModalConfirm);
+                nameModalCancel.parentNode.replaceChild(newCancel, nameModalCancel);
+
+                newCancel.addEventListener('click', function() {
+                    nameModal.classList.remove('active');
+                });
+
+                newConfirm.addEventListener('click', function() {
+                    const nombre = predioNameInput.value.trim() || `Predio ${predios.length + 1}`;
+                    nameModal.classList.remove('active');
+                    saveCallback(nombre);
+                });
+
+                predioNameInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        newConfirm.click();
+                    }
+                    if (e.key === 'Escape') {
+                        newCancel.click();
+                    }
+                });
+            }
+
+            function savePredio(lat, lng, polygonCoords, weatherData, days, nombre) {
+                const id = ++predioCounter;
+                const predio = {
+                    id: id,
+                    nombre: nombre,
+                    lat: lat,
+                    lng: lng,
+                    coords: polygonCoords,
+                    weatherData: weatherData,
+                    days: days,
+                    siembra: siembraInput.value,
+                    duracion: cultivoSelect.value
+                };
+                predios.push(predio);
+                renderPredios();
+                return predio;
+            }
+
+            function renderPredios() {
+                if (predios.length === 0) {
+                    prediosList.innerHTML =
+                        '<span class="empty-state"><i class="fas fa-info-circle"></i> No hay predios guardados</span>';
+                    return;
+                }
+                let html = '';
+                predios.forEach(p => {
+                    html += `<span class="predio-tag" data-id="${p.id}">
+                        <i class="fas fa-map-pin"></i> ${p.nombre}
+                        <span class="predio-id">#${p.id}</span>
+                        <span class="delete-predio" data-id="${p.id}">✕</span>
+                    </span>`;
+                });
+                prediosList.innerHTML = html;
+
+                document.querySelectorAll('.predio-tag').forEach(el => {
+                    el.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('delete-predio')) return;
+                        const id = parseInt(this.dataset.id);
+                        loadPredio(id);
+                    });
+                });
+
+                document.querySelectorAll('.delete-predio').forEach(el => {
+                    el.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const id = parseInt(this.dataset.id);
+                        eliminarPredio(id);
+                    });
+                });
+            }
+
+            function loadPredio(id) {
+                const predio = predios.find(p => p.id === id);
+                if (!predio) return;
+
+                if (currentPolygon) {
+                    drawnItems.removeLayer(currentPolygon);
+                }
+
+                const coords = predio.coords.map(c => [c.lat, c.lng]);
+                const polygon = L.polygon(coords, {
+                    color: '#1f6e8c',
+                    weight: 3,
+                    opacity: 0.8,
+                    fillColor: '#4b9bb8',
+                    fillOpacity: 0.25
+                });
+                drawnItems.addLayer(polygon);
+                currentPolygon = polygon;
+                polygonInfo.textContent = `${predio.nombre} (${coords.length} vértices)`;
+
+                if (predio.days) {
+                    buildHistoricalTable(predio.days, predio.siembra, predio.nombre);
+                }
+
+                map.setView([predio.lat, predio.lng], 8);
+
+                const centroid = getCentroid(predio.coords);
+                const popupContent = createPopupContent(centroid.lat, centroid.lng, predio.coords, predio);
+                const popup = L.popup({
+                    className: 'custom-popup',
+                    maxWidth: 340,
+                    minWidth: 260
+                })
+                .setLatLng([centroid.lat, centroid.lng])
+                .setContent(popupContent)
+                .openOn(map);
+                currentPopup = popup;
+
+                document.querySelectorAll('.predio-tag').forEach(el => {
+                    el.classList.toggle('active', parseInt(el.dataset.id) === id);
+                });
+
+                if (predio.siembra) siembraInput.value = predio.siembra;
+                if (predio.duracion) cultivoSelect.value = predio.duracion;
+            }
+
+            function eliminarPredio(id) {
+                predios = predios.filter(p => p.id !== id);
+                renderPredios();
+                if (predios.length === 0) {
+                    clearDraw();
+                }
+            }
+
+            function clearAllPrediosHandler() {
+                if (predios.length === 0) return;
+                if (confirm('¿Eliminar todos los predios guardados?')) {
+                    predios = [];
+                    predioCounter = 0;
+                    renderPredios();
+                    clearDraw();
+                }
+            }
+
+            function createPopupContent(lat, lng, polygonCoords, predioData) {
+                const container = document.createElement('div');
+                container.className = 'custom-popup';
+                const nombrePredio = predioData ? predioData.nombre : 'Nuevo predio';
+                container.innerHTML = `
+                    <div class="popup-title"><i class="fas fa-map-marker-alt"></i> ${nombrePredio}</div>
+                    <div id="weather-info" class="popup-weather">
+                        <p><i class="fas fa-spinner fa-spin"></i> Cargando clima...</p>
+                    </div>
+                    <div class="popup-btn-group">
+                        <button id="historicalBtn" class="popup-btn popup-btn-hist"><i class="fas fa-chart-line"></i> Hist</button>
+                        <button id="forecast7Btn" class="popup-btn popup-btn-forecast"><i class="fas fa-cloud-sun"></i> 7d</button>
+                        <button id="forecast15Btn" class="popup-btn popup-btn-forecast"><i class="fas fa-cloud-sun-rain"></i> 15d</button>
+                    </div>
+                    <div class="popup-btn-group">
+                        <button id="saveBtn" class="popup-btn popup-btn-save"><i class="fas fa-save"></i> Guardar</button>
+                        <button id="excelBtn" class="popup-btn popup-btn-excel"><i class="fas fa-file-excel"></i> Excel</button>
+                    </div>
+                    <div style="font-size:0.55rem;color:#4c6a83;margin-top:3px;text-align:center;"><i class="fas fa-vector-square"></i> ${polygonCoords.length} vértices</div>
+                `;
+
+                const weatherDiv = container.querySelector('#weather-info');
+                const histBtn = container.querySelector('#historicalBtn');
+                const forecast7Btn = container.querySelector('#forecast7Btn');
+                const forecast15Btn = container.querySelector('#forecast15Btn');
+                const saveBtn = container.querySelector('#saveBtn');
+                const excelBtn = container.querySelector('#excelBtn');
+
+                let weatherData = null;
+                let historicalDays = null;
+                let savedPredio = predioData || null;
+
+                (async function loadCurrent() {
+                    try {
+                        weatherData = await fetchCurrentWeather(lat, lng);
+                        weatherDiv.innerHTML = `
+                            <p><strong>🌡️ ${weatherData.temp}°C</strong> (${weatherData.feelslike}°C)</p>
+                            <p>📊 Max ${weatherData.tempmax}°C · Min ${weatherData.tempmin}°C</p>
+                            <p>💧 ${weatherData.humidity}% · 🌧️ ${weatherData.precip}mm · 💨 ${weatherData.windspeed}km/h</p>
+                            <p style="font-size:0.6rem;color:#5a7a94;">📅 ${weatherData.date} · ${weatherData.conditions}</p>
+                        `;
+                    } catch (err) {
+                        weatherDiv.innerHTML = `<p style="color:#b33;"><i class="fas fa-exclamation-circle"></i> ${err.message}</p>`;
+                    }
+                })();
+
+                histBtn.addEventListener('click', async function(e) {
+                    e.stopPropagation();
+                    const siembraVal = siembraInput.value;
+                    const duracion = parseInt(cultivoSelect.value);
+                    if (!siembraVal) {
+                        alert('Selecciona fecha de siembra.');
+                        return;
+                    }
+                    histBtn.disabled = true;
+                    histBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    try {
+                        const days = await fetchWeeklyHistorical(lat, lng, siembraVal, duracion);
+                        historicalDays = days;
+                        const nombre = savedPredio ? savedPredio.nombre : 'Predio';
+                        buildHistoricalTable(days, siembraVal, nombre);
+                        historicalSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        histBtn.innerHTML = '<i class="fas fa-check"></i>';
+                        histBtn.style.background = '#2f7a5c';
+                        setTimeout(() => {
+                            histBtn.disabled = false;
+                            histBtn.innerHTML = '<i class="fas fa-chart-line"></i> Hist';
+                            histBtn.style.background = '#2a7f9c';
+                        }, 3000);
+                    } catch (err) {
+                        weatherDiv.innerHTML = `<p style="color:#b33;"><i class="fas fa-exclamation-circle"></i> ${err.message}</p>`;
+                        histBtn.disabled = false;
+                        histBtn.innerHTML = '<i class="fas fa-redo"></i>';
+                    }
+                });
+
+                forecast7Btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    showForecast(weatherDiv, lat, lng, 7, 'Pronóstico 7 días', true);
+                });
+
+                forecast15Btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    showForecast(weatherDiv, lat, lng, 15, 'Pronóstico 15 días', true);
+                });
+
+                saveBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (!weatherData) {
+                        alert('Espera a que cargue el clima.');
+                        return;
+                    }
+                    showNameModal(function(nombre) {
+                        const predio = savePredio(lat, lng, polygonCoords, weatherData, historicalDays,
+                            nombre);
+                        savedPredio = predio;
+                        saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+                        saveBtn.style.background = '#2f7a5c';
+                        const title = container.querySelector('.popup-title');
+                        if (title) title.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${predio.nombre}`;
+                        setTimeout(() => {
+                            saveBtn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+                            saveBtn.style.background = '#d4a017';
+                        }, 3000);
+                    });
+                });
+
+                excelBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (!weatherData) {
+                        alert('Espera a que cargue el clima.');
+                        return;
+                    }
+                    try {
+                        const nombre = savedPredio ? savedPredio.nombre : 'Predio';
+                        const days = historicalDays || (savedPredio ? savedPredio.days : null);
+                        const tempPredio = {
+                            nombre: nombre,
+                            lat: lat,
+                            lng: lng,
+                            coords: polygonCoords,
+                            weatherData: weatherData,
+                            days: days,
+                            siembra: siembraInput.value,
+                            duracion: cultivoSelect.value
+                        };
+                        const rows = exportPredioToExcel(tempPredio);
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Clima');
+                        const colWidths = [
+                            { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
+                            { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }
+                        ];
+                        ws['!cols'] = colWidths;
+                        const filename =
+                            `predio_${nombre}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                        XLSX.writeFile(wb, filename);
+                        excelBtn.innerHTML = '<i class="fas fa-check"></i>';
+                        setTimeout(() => {
+                            excelBtn.innerHTML = '<i class="fas fa-file-excel"></i> Excel';
+                        }, 2500);
+                    } catch (err) {
+                        alert('Error al exportar: ' + err.message);
+                    }
+                });
+
+                return container;
+            }
+
+            function clearDraw() {
+                if (currentPolygon) {
+                    drawnItems.removeLayer(currentPolygon);
+                    currentPolygon = null;
+                    polygonInfo.textContent = 'Dibuja un polígono';
+                    if (currentPopup) {
+                        map.closePopup(currentPopup);
+                        currentPopup = null;
+                    }
+                    historicalSection.style.display = 'none';
+                    histTableBody.innerHTML =
+                        '<tr><td colspan="11" style="text-align:center;padding:20px;color:#7f8c8d;">Dibuja un polígono y carga el histórico</td></tr>';
+                }
+            }
+
+            map.on(L.Draw.Event.CREATED, function(event) {
+                const layer = event.layer;
+                if (layer instanceof L.Polygon) {
+                    clearDraw();
+                    drawnItems.addLayer(layer);
+                    currentPolygon = layer;
+                    const latLngs = layer.getLatLngs()[0];
+                    polygonInfo.textContent = `Polígono (${latLngs.length} vértices)`;
+
+                    const centroid = getCentroid(latLngs);
+                    const popupContent = createPopupContent(centroid.lat, centroid.lng, latLngs, null);
+                    const popup = L.popup({
+                        className: 'custom-popup',
+                        maxWidth: 340,
+                        minWidth: 260
+                    })
+                    .setLatLng([centroid.lat, centroid.lng])
+                    .setContent(popupContent)
+                    .openOn(map);
+                    currentPopup = popup;
+                } else {
+                    alert('Solo se permiten polígonos.');
+                }
+            });
+
+            drawBtn.addEventListener('click', function() {
+                new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+            });
+
+            clearBtn.addEventListener('click', clearDraw);
+            exportAllBtn.addEventListener('click', exportAllPredios);
+            clearAllPredios.addEventListener('click', clearAllPrediosHandler);
+
+            cultivoSelect.addEventListener('change', function() {
+                if (currentPolygon && currentPopup) {
+                    const predioActual = predios.find(p => p.nombre === polygonInfo.textContent.split('(')[0].trim());
+                    if (predioActual && predioActual.days) {
+                        buildHistoricalTable(predioActual.days, predioActual.siembra, predioActual.nombre);
+                    }
+                }
+            });
+
+            console.log('🌾 Mapa Agrícola - México cargado');
+            console.log('📍 Dibuja un polígono en el mapa para comenzar');
+        })();
+    </script>
+</body>
+</html>
